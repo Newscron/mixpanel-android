@@ -101,6 +101,7 @@ import android.util.Log;
             Log.w(LOGTAG, "Could not get receivers for package " + packageName);
             return false;
         }
+
         final ActivityInfo[] receivers = receiversInfo.receivers;
         if (receivers == null || receivers.length == 0) {
             Log.w(LOGTAG, "No receiver for package " + packageName);
@@ -123,11 +124,34 @@ import android.util.Log;
             return false;
         }
 
-        return checkReceiver(context, allowedReceivers, "com.google.android.c2dm.intent.REGISTRATION") &&
-                checkReceiver(context, allowedReceivers, "com.google.android.c2dm.intent.RECEIVE");
+        if (!checkReceiver(context, allowedReceivers, "com.google.android.c2dm.intent.RECEIVE")) {
+            return false;
+        }
+
+        boolean canRegisterWithPlayServices = false;
+        try {
+            Class.forName("com.google.android.gms.common.GooglePlayServicesUtil");
+            canRegisterWithPlayServices = true;
+        } catch(ClassNotFoundException e) {
+            Log.w(LOGTAG, "Google Play Services aren't included in your build- push notifications won't work on Lollipop/API 21 or greater");
+            Log.i(LOGTAG, "You can fix this by adding com.google.android.gms:play-services as a dependency of your gradle or maven project");
+        }
+
+        boolean canRegisterWithRegistrationIntent = true;
+        if (!checkReceiver(context, allowedReceivers, "com.google.android.c2dm.intent.REGISTRATION")) {
+            Log.i(LOGTAG, "(You can still receive push notifications on Lollipop/API 21 or greater with this configuration)");
+            canRegisterWithRegistrationIntent = false;
+        }
+
+        return canRegisterWithPlayServices || canRegisterWithRegistrationIntent;
     }
 
     public static boolean checkSurveyActivityAvailable(Context context) {
+        if (Build.VERSION.SDK_INT < 14) {
+            // No need to log, SurveyActivity doesn't work on this platform.
+            return false;
+        }
+
         final Intent surveyIntent = new Intent(context, SurveyActivity.class);
         surveyIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         surveyIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
